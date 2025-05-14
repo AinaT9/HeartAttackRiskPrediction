@@ -11,7 +11,7 @@ from sklearn.metrics import confusion_matrix
 import joblib
 
 # %%
-df = pd.read_csv("Modelo/data/heart-attack-risk-prediction-dataset.csv")
+df = pd.read_csv("HeartAttackRiskPrediction-main/Modelo/data/heart-attack-risk-prediction-dataset.csv")
 df.head()
 
 # %%
@@ -97,11 +97,11 @@ plt.show()
 
 # %%
 # Guardar el modelo
-joblib.dump(rf, 'Modelo/modelo_rf.joblib')
+joblib.dump(rf, 'HeartAttackRiskPrediction-main/Modelo/modelo_rf.joblib')
 
 #%%
 # Cargar el modelo
-modelo_cargado = joblib.load('Modelo/modelo_rf.joblib')
+modelo_cargado = joblib.load('HeartAttackRiskPrediction-main/Modelo/modelo_rf.joblib')
 
 # %%
 predicciones = modelo_cargado.predict(X_test)
@@ -150,11 +150,142 @@ plt.show()
 
 # %%
 # Guardar el modelo
-joblib.dump(rf, 'Modelo/modelo_rf_patients.joblib')
+joblib.dump(rf, 'HeartAttackRiskPrediction-main/Modelo/modelo_rf_patients.joblib')
 
 #%%
 # Cargar el modelo
-modelo_cargado = joblib.load('Modelo/modelo_rf_patients.joblib')
+modelo_cargado = joblib.load('HeartAttackRiskPrediction-main/Modelo/modelo_rf_patients.joblib')
+
+# %%
+predicciones = modelo_cargado.predict(X_test)
+accuracy = accuracy_score(y_test, predicciones)
+print(f'Precisión: {accuracy}')
+print(classification_report(y_test, predicciones))
+
+
+
+
+
+
+# %%
+
+selected_variables = [
+    'Age',
+    'Gender',
+    'Diabetes',
+    'Blood sugar',
+    'Cholesterol',
+    'Systolic blood pressure',
+    'Diastolic blood pressure',
+    'Smoking',
+    'Alcohol Consumption',
+    'Exercise Hours Per Week',
+    'Medication Use',
+    'Previous Heart Problems'
+]
+
+X = df[selected_variables]
+
+ros = RandomOverSampler(random_state=42)
+X_resampled, y_resampled = ros.fit_resample(X, y)
+
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
+X_train.shape, y_train.shape
+
+# %%
+rf = RandomForestClassifier(n_estimators=100, random_state=42)
+rf.fit(X_train, y_train)
+
+# %%
+y_pred = rf.predict(X_test)
+
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Precisión: {accuracy}')
+
+# %%
+plt.figure(figsize=(6, 4))
+sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Greens')
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix - Random Forest Patients")
+plt.show()
+
+# %%
+# Guardar el modelo
+joblib.dump(rf, 'HeartAttackRiskPrediction-main/Modelo/modelo_rf_doctors.joblib')
+
+#%%
+# Cargar el modelo
+modelo_cargado = joblib.load('HeartAttackRiskPrediction-main/Modelo/modelo_rf_doctors.joblib')
+
+# %%
+predicciones = modelo_cargado.predict(X_test)
+accuracy = accuracy_score(y_test, predicciones)
+print(f'Precisión: {accuracy}')
+print(classification_report(y_test, predicciones))
+
+
+
+
+
+
+
+
+
+# %%
+
+selected_variables = [
+    'Age',
+    'Gender',
+    'Diabetes',
+    'Blood sugar',
+    'Cholesterol',
+    'Triglycerides',
+    'BMI',
+    'Systolic blood pressure',
+    'Diastolic blood pressure',
+    'Smoking',
+    'Alcohol Consumption',
+    'Obesity',
+    'CK-MB',
+    'Troponin',
+    'Stress Level'
+]
+
+
+X = df[selected_variables]
+
+ros = RandomOverSampler(random_state=42)
+X_resampled, y_resampled = ros.fit_resample(X, y)
+
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
+X_train.shape, y_train.shape
+
+# %%
+rf = RandomForestClassifier(n_estimators=100, random_state=42)
+rf.fit(X_train, y_train)
+
+# %%
+y_pred = rf.predict(X_test)
+
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Precisión: {accuracy}')
+
+# %%
+plt.figure(figsize=(6, 4))
+sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Greens')
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix - Random Forest Patients")
+plt.show()
+
+# %%
+# Guardar el modelo
+joblib.dump(rf, 'HeartAttackRiskPrediction-main/Modelo/modelo_rf_datascientists.joblib')
+
+#%%
+# Cargar el modelo
+modelo_cargado = joblib.load('HeartAttackRiskPrediction-main/Modelo/modelo_rf_datascientists.joblib')
 
 # %%
 predicciones = modelo_cargado.predict(X_test)
