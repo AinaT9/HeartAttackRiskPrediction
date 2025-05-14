@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import joblib
 import shap
+from sklearn.impute import KNNImputer
 from streamlit_shap import st_shap
 
 modelo_cargado = joblib.load("Modelo/modelo_rf_datascientists.joblib")
@@ -36,8 +37,14 @@ feature_ranges = [
 
 def show_dashboard():
     st.header("Data Scientist Dashboard: Model Testing Interface")
-    st.subheader("Enter patient data for ML model evaluation")
+    st.subheader("Most important features")
+    explainer, X = explain_dashboard()
+    shap_values = explainer(X)[:,:,1]
+    st_shap(shap.plots.beeswarm(shap_values))
 
+    st_shap(shap.plots.scatter(shap_values[:, 'Cholesterol']))
+
+    st.subheader("Enter patient data for ML model evaluation")
     inputs = []
     for i, col in enumerate(columns):
         if col in ['Gender', 'Diabetes', 'Smoking', 'Alcohol Consumption', 'Obesity']:
@@ -66,6 +73,16 @@ def show_dashboard():
         st.write("### SHAP Explanation (Model Interpretation)")
         st_shap(shap.plots.force(shap_value, matplotlib=True))
         plt.show()
+
+def explain_dashboard():
+    df = pd.read_csv("Modelo/data/heart-attack-risk-prediction-dataset.csv")
+    df['Gender'] = df['Gender'].map({'Male': 0, 'Female': 1})
+    imputer = KNNImputer(n_neighbors=2)
+    df = pd.DataFrame(imputer.fit_transform(df), columns=df.columns) 
+    X =  df[columns]
+    explainer = shap.Explainer(modelo_cargado)
+    X= X.sample(n=200, random_state=42)
+    return explainer, X
 
 def get_prediction(pred):
     pred = np.array(pred).reshape(1, -1)

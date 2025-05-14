@@ -9,9 +9,11 @@ from sklearn.impute import KNNImputer
 from imblearn.over_sampling import RandomOverSampler
 from sklearn.metrics import confusion_matrix
 import joblib
+import shap
+
 
 # %%
-df = pd.read_csv("HeartAttackRiskPrediction-main/Modelo/data/heart-attack-risk-prediction-dataset.csv")
+df = pd.read_csv("Modelo/data/heart-attack-risk-prediction-dataset.csv")
 df.head()
 
 # %%
@@ -97,11 +99,11 @@ plt.show()
 
 # %%
 # Guardar el modelo
-joblib.dump(rf, 'HeartAttackRiskPrediction-main/Modelo/modelo_rf.joblib')
+joblib.dump(rf, 'modelo_rf.joblib')
 
 #%%
 # Cargar el modelo
-modelo_cargado = joblib.load('HeartAttackRiskPrediction-main/Modelo/modelo_rf.joblib')
+modelo_cargado = joblib.load('./Modelo/modelo_rf.joblib')
 
 # %%
 predicciones = modelo_cargado.predict(X_test)
@@ -150,11 +152,11 @@ plt.show()
 
 # %%
 # Guardar el modelo
-joblib.dump(rf, 'HeartAttackRiskPrediction-main/Modelo/modelo_rf_patients.joblib')
+joblib.dump(rf, 'Modelo/modelo_rf_patients.joblib')
 
 #%%
 # Cargar el modelo
-modelo_cargado = joblib.load('HeartAttackRiskPrediction-main/Modelo/modelo_rf_patients.joblib')
+modelo_cargado = joblib.load('Modelo/modelo_rf_patients.joblib')
 
 # %%
 predicciones = modelo_cargado.predict(X_test)
@@ -212,11 +214,11 @@ plt.show()
 
 # %%
 # Guardar el modelo
-joblib.dump(rf, 'HeartAttackRiskPrediction-main/Modelo/modelo_rf_doctors.joblib')
+joblib.dump(rf, 'Modelo/modelo_rf_doctors.joblib')
 
 #%%
 # Cargar el modelo
-modelo_cargado = joblib.load('HeartAttackRiskPrediction-main/Modelo/modelo_rf_doctors.joblib')
+modelo_cargado = joblib.load('Modelo/modelo_rf_doctors.joblib')
 
 # %%
 predicciones = modelo_cargado.predict(X_test)
@@ -281,14 +283,30 @@ plt.show()
 
 # %%
 # Guardar el modelo
-joblib.dump(rf, 'HeartAttackRiskPrediction-main/Modelo/modelo_rf_datascientists.joblib')
+joblib.dump(rf, 'Modelo/modelo_rf_datascientists.joblib')
 
 #%%
 # Cargar el modelo
-modelo_cargado = joblib.load('HeartAttackRiskPrediction-main/Modelo/modelo_rf_datascientists.joblib')
+modelo_cargado = joblib.load('Modelo/modelo_rf_datascientists.joblib')
 
 # %%
 predicciones = modelo_cargado.predict(X_test)
 accuracy = accuracy_score(y_test, predicciones)
 print(f'Precisión: {accuracy}')
 print(classification_report(y_test, predicciones))
+
+#%%
+df = pd.read_csv("Modelo/data/heart-attack-risk-prediction-dataset.csv")
+df['Gender'] = df['Gender'].map({'Male': 0, 'Female': 1})
+imputer = KNNImputer(n_neighbors=2)
+df = pd.DataFrame(imputer.fit_transform(df), columns=df.columns) 
+X =  df[selected_variables]
+print("Explainer")
+# %%
+explainer = shap.Explainer(modelo_cargado)
+x= X.sample(n=200, random_state=42)
+shap_values = explainer(x)[:,:,1]
+shap.plots.bar(shap_values, max_display=10)
+
+
+# %%
