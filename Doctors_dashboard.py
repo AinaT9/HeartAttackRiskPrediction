@@ -10,25 +10,33 @@ from streamlit_shap import st_shap
 # Nuevo modelo
 modelo_cargado = joblib.load('Modelo/modelo_rf_doctors.joblib')
 
-feature_ranges = [
-    (18, 90),      # Age
-    (0, 1),        # Gender
-    (0, 1),        # Diabetes
-    (70, 250),     # Blood sugar
-    (100, 400),    # Cholesterol
-    (90, 200),     # Systolic BP
-    (60, 130),     # Diastolic BP
-    (0, 1),        # Smoking
-    (0, 1),        # Alcohol Consumption
-    (0, 20),       # Exercise hours/week
-    (0, 1),        # Medication Use
-    (0, 1),        # Previous Heart Problems
-]
 columns = [
-    'Age', 'Gender', 'Diabetes', 'Blood sugar', 'Cholesterol',
-    'Systolic blood pressure', 'Diastolic blood pressure', 'Smoking',
-    'Alcohol Consumption', 'Exercise Hours Per Week',
-    'Medication Use', 'Previous Heart Problems'
+    '', '', '', 'Blood sugar', '',
+    'Systolic blood pressure', 'Diastolic blood pressure', '',
+    '', '',
+    '', ''
+]
+column_names = [
+    "Age",
+    "Gender",
+    "Cholesterol",
+    "Heart Rate",
+    "Diabetes",
+    "Family History",
+    "Smoking",
+    "Obesity",
+    "Alcohol Consumption",
+    "Exercise Hours Per Week",
+    "Diet",
+    "Previous Heart Problems",
+    "Medication Use",
+    "Stress Level",
+    "Sedentary Hours Per Day",
+    "BMI",
+    "Triglycerides",
+    "Sleep Hours Per Day",
+    "Systolic blood pressure",
+    "Diastolic blood pressure"
 ]
 
 def show_dashboard():
@@ -46,21 +54,21 @@ def show_dashboard():
         gender = st.radio("Gender", ["Male", "Female"])
         gender = 1 if gender == "Male" else 0
     with col3:
-        diabetes = st.radio("Diabetes", ["Yes", "No"])
-
-    col4, col5, col6 = st.columns(3)
-    with col4:
-        blood_sugar = st.number_input(
-            label="Blood Sugar (mg/dL)",
-            min_value=70,
-            max_value=250
-        )
-    with col5:
         cholesterol = st.number_input(
             label="Cholesterol (mg/dL)",
             min_value=100,
             max_value=400
         )
+        
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        heart_rate = st.number_input(
+            label="Heart Rate",
+            min_value=40,
+            max_value=120
+        )
+    with col5:
+        diabetes = st.radio("Diabetes", ["Yes", "No"])
     with col6:
         sbp = st.number_input(
             label="Systolic BP (mmHg)",
@@ -91,13 +99,59 @@ def show_dashboard():
         medication = st.radio("Medication Use", ["Yes", "No"])
     with col12:
         previous_heart = st.radio("Previous Heart Problems", ["Yes", "No"])
+        previous_heart = 1 if previous_heart == "Yes" else 0
+    
+    col13, col14, col15, col16 = st.columns(4)
+    with col13:
+        triglycerides = st.number_input(
+            label="Triglycerides",
+            min_value=20,
+            max_value=400
+        )
+    with col14:
+        family_history = st.selectbox("Do you have any family history of heart attacks?",("No", "Yes"))
+    with col15:
+        obesity = st.radio('Have you obesity?', ["Yes", "No"])
+        obesity = 1 if obesity == "Yes" else 0
+    with col16:
+        diet = st.selectbox("How is your diet?",("Unhealthy", "Normal", "Healthy"))    
+        diet_map = {"Unhealthy": 0, "Normal": 1, "Healthy": 2}
+        diet = diet_map.get(diet, -1) 
+    
+    col17, col18, col19, col20 = st.columns(4)
+    with col17:
+        sleep = st.number_input(
+                    label="Sleep h/day",
+                    min_value=0,
+                    max_value=12
+                )        
+    with col18:
+        stress = st.number_input(
+            label="From 1 to 10, which is your stress level?",
+            min_value=1,
+            max_value=10
+        )
+    with col19:
+        sedentary = st.number_input(
+            label="How many hours do you sit?",
+            min_value=0,
+            max_value=12
+        )
+    with col20:
+        bmi = st.number_input(
+            label="BMI",
+            min_value=15,
+            max_value=50
+        )
+
 
     _, col_button, _ = st.columns(3)
+        
     with col_button:
         if st.button("CALCULATE!"):
             pred = [
-                age, gender, diabetes, blood_sugar, cholesterol, sbp, dbp,
-                smoking, alcohol, exercise, medication, previous_heart
+                age, gender, cholesterol, heart_rate, family_history, smoking, obesity, diabetes,alcohol,exercise, diet,previous_heart,medication, 
+                stress, sedentary, bmi, triglycerides,sleep, sbp, dbp
             ]
             st.subheader("Estimated Risk:")
             value = get_prediction(pred)
@@ -154,16 +208,9 @@ def preprocess_input(pred):
             p = 0
         elif p == 'Yes':
             p = 1
-        else:
-            p = normalize(p, feature_ranges[i])
         new_pred.append(p)
     return np.array(new_pred).reshape(1, -1)
 
-def normalize(p, range_values):
-    value = float(p)
-    min_val, max_val = range_values
-    norm = (value - min_val) / (max_val - min_val)
-    return max(0, min(1, norm))
 
 def get_prediction(pred):
     pred_processed = preprocess_input(pred)

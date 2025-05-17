@@ -7,33 +7,35 @@ import joblib
 import shap
 from sklearn.impute import KNNImputer
 from streamlit_shap import st_shap
+from sklearn.preprocessing import LabelEncoder
 
-modelo_cargado = joblib.load("Modelo/modelo_rf_datascientists.joblib")
 
-columns = [
-    'Age', 'Gender', 'Diabetes', 'Blood sugar', 'Cholesterol',
-    'Triglycerides', 'BMI', 'Systolic blood pressure',
-    'Diastolic blood pressure', 'Smoking', 'Alcohol Consumption',
-    'Obesity', 'CK-MB', 'Troponin', 'Stress Level'
+modelo_cargado = joblib.load("Modelo/modelo_rf.joblib")
+
+columns= [
+    "Age",
+    "Gender",
+    "Cholesterol",
+    "Heart Rate",
+    "Diabetes",
+    "Family History",
+    "Smoking",
+    "Obesity",
+    "Alcohol Consumption",
+    "Exercise Hours Per Week",
+    "Diet",
+    "Previous Heart Problems",
+    "Medication Use",
+    "Stress Level",
+    "Sedentary Hours Per Day",
+    "BMI",
+    "Triglycerides",
+    "Sleep Hours Per Day",
+    "Country",
+    "Systolic blood pressure",
+    "Diastolic blood pressure"
 ]
 
-feature_ranges = [
-    (18, 90),     # Age
-    (0, 1),       # Gender
-    (0, 1),       # Diabetes
-    (70, 250),    # Blood sugar
-    (100, 400),   # Cholesterol
-    (50, 500),    # Triglycerides
-    (15, 50),     # BMI
-    (90, 200),    # SBP
-    (60, 130),    # DBP
-    (0, 1),       # Smoking
-    (0, 1),       # Alcohol
-    (0, 1),       # Obesity
-    (0, 100),     # CK-MB (ng/mL)
-    (0, 100),     # Troponin (ng/mL)
-    (0, 10)       # Stress level
-]
 
 def show_dashboard():
     st.header("Data Scientist Dashboard: Model Testing Interface")
@@ -46,14 +48,13 @@ def show_dashboard():
 
     st.subheader("Enter patient data for ML model evaluation")
     inputs = []
-    for i, col in enumerate(columns):
-        if col in ['Gender', 'Diabetes', 'Smoking', 'Alcohol Consumption', 'Obesity']:
-            val = st.radio(f"{col}", ["Yes", "No"])
-            val = 1 if val == "Yes" else 0
-        else:
-            min_val, max_val = feature_ranges[i]
-            val = st.slider(f"{col}", min_val, max_val, int((min_val + max_val) / 2))
-        inputs.append(val)
+    # for i, col in enumerate(columns):
+    #     if col in ['Gender', 'Diabetes', 'Smoking', 'Alcohol Consumption', 'Obesity']:
+    #         val = st.radio(f"{col}", ["Yes", "No"])
+    #         val = 1 if val == "Yes" else 0
+    #     else:
+    #         val = st.slider(f"{col}", min_val, max_val, int((min_val + max_val) / 2))
+    #     inputs.append(val)
 
     if st.button("Predict and Explain"):
         st.subheader("Predicted Heart Attack Risk:")
@@ -75,8 +76,19 @@ def show_dashboard():
         plt.show()
 
 def explain_dashboard():
-    df = pd.read_csv("Modelo/data/heart-attack-risk-prediction-dataset.csv")
+    df = pd.read_csv("Modelo/data/heart_attack_prediction_dataset.csv")
+    df = df.drop(columns=['Patient ID', 'Income','Physical Activity Days Per Week','Continent', 'Hemisphere'])
+    df = df.rename(columns={'Sex': 'Gender'})
     df['Gender'] = df['Gender'].map({'Male': 0, 'Female': 1})
+    diet_map = {'Unhealthy': 0, 'Average': 1, 'Healthy': 2}
+    df['Diet'] = df['Diet'].map(diet_map)
+    bp_split = df['Blood Pressure'].str.split('/', expand=True)
+    df['Systolic blood pressure'] = pd.to_numeric(bp_split[0])
+    df['Diastolic blood pressure'] = pd.to_numeric(bp_split[1])
+    df = df.drop(columns=['Blood Pressure'])
+    le = LabelEncoder()
+    df['Country'] = le.fit_transform(df['Country'])
+    
     imputer = KNNImputer(n_neighbors=2)
     df = pd.DataFrame(imputer.fit_transform(df), columns=df.columns) 
     X =  df[columns]

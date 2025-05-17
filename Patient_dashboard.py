@@ -10,30 +10,21 @@ from streamlit_shap import st_shap
 import dalex as dx
 from sklearn.impute import KNNImputer
 
-feature_ranges= [
-    (0, 1),     # Diabetes
-    (0, 20),    # Exercise Hours Per Week
-    (0, 1),     # Medication Use
-    (18, 90),   # Age
-    (0, 1),     # Previous Heart Problems
-    (0, 1),     # Gender
-    (0, 1),     # Smoking
-    (0, 1),     # Alcohol Consumption
-    (0, 12),    # Sleep Hours Per Day
-    (0, 1)      # Diet
-]
-
-columns =  [
-    'Diabetes',
-    'Exercise Hours Per Week',
-    'Medication Use',
+selected_variables = [
     'Age',
-    'Previous Heart Problems',
     'Gender', 
+    'Diabetes',
+    'Family History',
     'Smoking',
-    'Alcohol Consumption',
-    'Sleep Hours Per Day',
-    'Diet'
+    'Obesity',
+    'Alcohol Consumption',  
+    'Exercise Hours Per Week',
+    'Diet',
+    'Previous Heart Problems',
+    'Medication Use',
+    'Stress Level',
+    'Sedentary Hours Per Day',
+    'Sleep Hours Per Day'    
 ]
 
 modelo_cargado = joblib.load('Modelo/modelo_rf_patients.joblib')
@@ -42,72 +33,91 @@ def show_dashboard():
     st.header("What is your risk of heart attack?")
     st.subheader("Please complete the following fields:")
     pred = []
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1: 
-        sex = st.segmented_control("Sex", ["M", "F"])
-        sex = 0 if sex == "M" else 1
-        pred.append(sex)
+        gender = st.segmented_control("Sex", ["M", "F"])
+        gender = 0 if gender == "M" else 1
     with col2:
         age = st.number_input(
             label="Introduce your age",
             min_value=18,
             max_value=90
         )
-        pred.append(age)
     with col3:
         diabetes = st.selectbox("Do you have diabetes?",("No", "Yes"))
-        pred.append(diabetes)
+    with col4:
+        family_history = st.selectbox("Do you have any family history of heart attacks?",("No", "Yes"))
 
        
 
-    col4, col5, col6 = st.columns(3)
-    with col4:
+    colx, col5, col6, col7 = st.columns(4)
+    with colx:
         alcohol = st.selectbox("Do you drink alcohol?",("No", "Yes"))
-        pred.append(alcohol)
 
     with col5:
         medication = st.selectbox("Do you take any medication?",("No", "Yes"))
-        pred.append(medication)
 
     with col6:
         smoking = st.selectbox("Do you smoke?",("No", "Yes"))
-        pred.append(smoking)
+    with col7: 
+        diet = st.selectbox("How is your diet?",("Unhealthy", "Normal", "Healthy"))    
+        diet_map = {"Unhealthy": 0, "Normal": 1, "Healthy": 2}
+        diet = diet_map.get(diet, -1) 
 
-    col7, col8, col9 = st.columns(3)
-    with col7:
+    col8, col9, col10= st.columns(3)
+    with col8:
         exercise = st.number_input(
             label="How many hours a week do you exercise?",
             min_value=0,
             max_value=20
         )
-        pred.append(exercise)
-
-    with col8:
+    with col9:
         sleep = st.number_input(
             label="How many hours do you sleep per day?",
             min_value=0,
             max_value=12
         )
-        pred.append(sleep)
-    with col9:
-        diet = st.selectbox("Do you do diet?",("No", "Yes"))
-        pred.append(diet)
-    _, col11, col12 = st.columns(3)
+    with col10:
+        sedentary = st.number_input(
+            label="How many hours do you sit?",
+            min_value=0,
+            max_value=12
+        )
+
+    col11, col12, col13 = st.columns(3)
     with col11: 
+        obesity = st.radio('Have you obesity?', ["Yes", "No"])
+        obesity = 1 if obesity == "Yes" else 0
+    with col12: 
+        stress = st.number_input(
+            label="From 1 to 10, which is your strees level?",
+            min_value=1,
+            max_value=10
+        )
+    with col13: 
         val = st.radio('Previous Heart Problems', ["Yes", "No"])
         val = 1 if val == "Yes" else 0
-        pred.append(val)
-    with col12: 
+
+    _, col14, _= st.columns(3) 
+    with col14:
         b = st.button("CALCULATE!")
+    pred = [age,gender,diabetes,family_history,smoking,obesity, alcohol, exercise, diet,val, medication, stress, sedentary, sleep]
 
     if b:
-        st.subheader("Your risk is")
+        risk_percent = get_prediction(pred)  
+        risk_class = get_predicted_class(pred)
+        if risk_class == 1:
+            decision_text = "HIGH RISK"
+            emoji = "🚨"
+        else:
+            decision_text = "LOW RISK"
+            emoji = "💪"
 
-        value = get_prediction(pred)
-        if value < 30:
+        st.markdown(f"###  You have {emoji} **{decision_text}** of having a heart attack.")        
+        if risk_percent < 30:
             color = "green"
             image_path = "images/SemaforoVerde.png"
-        elif 30 <= value < 70:
+        elif 30 <= risk_percent < 70:
             color = "yellow"
             image_path = "images/SemaforoAmarillo.png"
         else:
@@ -132,7 +142,7 @@ def show_dashboard():
                     width: 200px;
                     margin: auto;
                 '>
-                    {value} %
+                    {risk_percent} %
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -157,34 +167,32 @@ def preprocess_input(pred):
     for i,p in enumerate(pred): 
         if p == 'No':
             p = 0 
-        elif p == 'Yes':
+        elif p=='Yes':
             p = 1
-        else: 
-            p = normalize(p, feature_ranges.__getitem__(i))
         new_pred.append(p)
     return numpy.array(new_pred)
 
-def normalize(p, range_values):
-    value = float(p)
-    min_val, max_val = range_values
-    norm = (value - min_val) / (max_val - min_val)
-    return max(0, min(1, norm))
-
+def get_predicted_class(pred):
+    pred = preprocess_input(pred)
+    pred = pred.reshape(1, -1)
+    return int(modelo_cargado.predict(pred)[0])
 
 def get_prediction(pred):
-    st.text(pred)
     pred = preprocess_input(pred)
     pred= pred.reshape(1, -1)
     probab = modelo_cargado.predict_proba(pred)
     return int(probab[0][1] * 100)
 
 
-
 def explain_dashboard():
-    df = pd.read_csv("Modelo/data/heart-attack-risk-prediction-dataset.csv")
+    df = pd.read_csv("Modelo/data/heart_attack_prediction_dataset.csv")
+    df = df.rename(columns={'Sex': 'Gender'})
     df['Gender'] = df['Gender'].map({'Male': 0, 'Female': 1})
+    diet_map = {'Unhealthy': 0, 'Average': 1, 'Healthy': 2}
+    df['Diet'] = df['Diet'].map(diet_map)
+    df = df[selected_variables]
     imputer = KNNImputer(n_neighbors=2)
     df = pd.DataFrame(imputer.fit_transform(df), columns=df.columns) 
-    X =  df[columns]
+    X =  df[selected_variables]
     X= X.sample(n=200, random_state=42)
     return X

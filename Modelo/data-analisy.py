@@ -42,6 +42,8 @@ df['Diet'] = df['Diet'].map(diet_map)
 
 le = LabelEncoder()
 df['Country'] = le.fit_transform(df['Country'])
+country_mapping = {i: country for i, country in enumerate(le.classes_)}
+print(country_mapping)
 
 # min_max = pd.DataFrame({
 #     'Min': df.min(numeric_only=True),
