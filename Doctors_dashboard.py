@@ -37,7 +37,11 @@ def show_dashboard():
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        age = st.slider("Age", 18, 90, 50)
+        age = st.number_input(
+            label="Age",
+            min_value=18,
+            max_value=90
+        )
     with col2:
         gender = st.radio("Gender", ["Male", "Female"])
         gender = 1 if gender == "Male" else 0
@@ -46,15 +50,31 @@ def show_dashboard():
 
     col4, col5, col6 = st.columns(3)
     with col4:
-        blood_sugar = st.slider("Blood Sugar (mg/dL)", 70, 250, 100)
+        blood_sugar = st.number_input(
+            label="Blood Sugar (mg/dL)",
+            min_value=70,
+            max_value=250
+        )
     with col5:
-        cholesterol = st.slider("Cholesterol (mg/dL)", 100, 400, 200)
+        cholesterol = st.number_input(
+            label="Cholesterol (mg/dL)",
+            min_value=100,
+            max_value=400
+        )
     with col6:
-        sbp = st.slider("Systolic BP (mmHg)", 90, 200, 120)
+        sbp = st.number_input(
+            label="Systolic BP (mmHg)",
+            min_value=90,
+            max_value=200
+        )
 
     col7, col8, col9 = st.columns(3)
     with col7:
-        dbp = st.slider("Diastolic BP (mmHg)", 60, 130, 80)
+        dbp = st.number_input(
+            label="Diastolic BP (mmHg)",
+            min_value=60,
+            max_value=130
+        )
     with col8:
         smoking = st.radio("Smoking", ["Yes", "No"])
     with col9:
@@ -62,7 +82,11 @@ def show_dashboard():
 
     col10, col11, col12 = st.columns(3)
     with col10:
-        exercise = st.slider("Exercise (hrs/week)", 0, 20, 3)
+        exercise = st.number_input(
+            label="Exercise (hrs/week)",
+            min_value=0,
+            max_value=20
+        )
     with col11:
         medication = st.radio("Medication Use", ["Yes", "No"])
     with col12:

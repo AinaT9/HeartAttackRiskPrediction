@@ -48,7 +48,11 @@ def show_dashboard():
         sex = 0 if sex == "M" else 1
         pred.append(sex)
     with col2:
-        age = st.slider("Select Age", 18, 90, 55)
+        age = st.number_input(
+            label="Introduce your age",
+            min_value=18,
+            max_value=90
+        )
         pred.append(age)
     with col3:
         diabetes = st.selectbox("Do you have diabetes?",("No", "Yes"))
@@ -71,11 +75,19 @@ def show_dashboard():
 
     col7, col8, col9 = st.columns(3)
     with col7:
-        exercise =  st.slider("How many hours a week do you exercise?",0, 20, 5)
+        exercise = st.number_input(
+            label="How many hours a week do you exercise?",
+            min_value=0,
+            max_value=20
+        )
         pred.append(exercise)
 
     with col8:
-        sleep = st.slider("How many hours do you sleep per day?",0, 12, 7)
+        sleep = st.number_input(
+            label="How many hours do you sleep per day?",
+            min_value=0,
+            max_value=12
+        )
         pred.append(sleep)
     with col9:
         diet = st.selectbox("Do you do diet?",("No", "Yes"))
