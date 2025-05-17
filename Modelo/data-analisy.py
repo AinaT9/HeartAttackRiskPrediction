@@ -8,30 +8,57 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.impute import KNNImputer
 from imblearn.over_sampling import RandomOverSampler
 from sklearn.metrics import confusion_matrix
+from sklearn.preprocessing import LabelEncoder
 import joblib
 import shap
 
 
 # %%
-df = pd.read_csv("Modelo/data/heart-attack-risk-prediction-dataset.csv")
+df = pd.read_csv("Modelo/data/heart_attack_prediction_dataset.csv")
 df.head()
 
 # %%
-df.columns
+print(df.columns)
 
 # %%
-df.describe()
+print(df.describe())
 
 # %%
-df['Heart Attack Risk (Binary)'].value_counts()
+df = df.drop(columns=['Patient ID', 'Income','Physical Activity Days Per Week','Continent', 'Hemisphere'])
+df = df.rename(columns={'Sex': 'Gender'})
+df['Gender'] = df['Gender'].map({'Male': 1, 'Female': 0})
+
+
+bp_split = df['Blood Pressure'].str.split('/', expand=True)
+df['Systolic blood pressure'] = pd.to_numeric(bp_split[0])
+df['Diastolic blood pressure'] = pd.to_numeric(bp_split[1])
+df = df.drop(columns=['Blood Pressure'])
+
+print(df['Diet'].unique())
+print(df['Country'].unique())
+
+diet_map = {'Unhealthy': 0, 'Average': 1, 'Healthy': 2}
+df['Diet'] = df['Diet'].map(diet_map)
+
+le = LabelEncoder()
+df['Country'] = le.fit_transform(df['Country'])
+
+# min_max = pd.DataFrame({
+#     'Min': df.min(numeric_only=True),
+#     'Max': df.max(numeric_only=True)
+# })
+# min_max.to_csv('min_max.txt', sep='\t')
+# numeric_cols = df.select_dtypes(include='number').columns
+# df[numeric_cols] = (df[numeric_cols] - df[numeric_cols].min()) / (df[numeric_cols].max() - df[numeric_cols].min())
+
+# Opcional: guardar resultado
+#df.to_csv("newNormalized.csv", index=False)
+df['Heart Attack Risk'].value_counts()
 # %%
 df.info()
 
 # %%
 df.isna().sum()
-
-# %%
-df['Gender'] = df['Gender'].map({'Male': 0, 'Female': 1})
 
 # %%
 imputer = KNNImputer(n_neighbors=2)
@@ -46,10 +73,10 @@ df.isna().sum()
 df.head()
 # %%
 correlation_matrix = df.corr()
-correlation_matrix['Heart Attack Risk (Text)']
+correlation_matrix['Heart Attack Risk']
 
 # %%
-target_corr = correlation_matrix['Heart Attack Risk (Binary)'].drop('Heart Attack Risk (Binary)')
+target_corr = correlation_matrix['Heart Attack Risk'].drop('Heart Attack Risk')
 
 target_corr_sorted = target_corr.sort_values(ascending=False)
 
@@ -69,8 +96,8 @@ plt.tight_layout()
 plt.show()
 
 # %%
-target_column = "Heart Attack Risk (Binary)"
-X = df.drop(columns=[target_column, "Heart Attack Risk (Text)"])
+target_column = "Heart Attack Risk"
+X = df.drop(columns=[target_column, "Heart Attack Risk"])
 y = df[target_column]
 
 ros = RandomOverSampler(random_state=42)
@@ -99,7 +126,7 @@ plt.show()
 
 # %%
 # Guardar el modelo
-joblib.dump(rf, 'modelo_rf.joblib')
+joblib.dump(rf, './Modelo/modelo_rf.joblib')
 
 #%%
 # Cargar el modelo
@@ -110,20 +137,65 @@ predicciones = modelo_cargado.predict(X_test)
 accuracy = accuracy_score(y_test, predicciones)
 print(f'Precisión: {accuracy}')
 print(classification_report(y_test, predicciones))
-# %%
 
+#%%
+X = df.drop(columns=["Country","Heart Attack Risk"])
+print(X)
+
+ros = RandomOverSampler(random_state=42)
+X_resampled, y_resampled = ros.fit_resample(X, y)
+
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
+X_train.shape, y_train.shape
+
+# %%
+rf = RandomForestClassifier(n_estimators=100, random_state=42)
+rf.fit(X_train, y_train)
+
+# %%
+y_pred = rf.predict(X_test)
+
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Precisión: {accuracy}')
+
+# %%
+plt.figure(figsize=(6, 4))
+sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Greens')
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix - Random Forest")
+plt.show()
+
+# %%
+# Guardar el modelo
+joblib.dump(rf, './Modelo/modelo_rf_doctors.joblib')
+
+#%%
+# Cargar el modelo
+modelo_cargado = joblib.load('./Modelo/modelo_rf_doctors.joblib')
+
+# %%
+predicciones = modelo_cargado.predict(X_test)
+accuracy = accuracy_score(y_test, predicciones)
+print(f'Precisión: {accuracy}')
+print(classification_report(y_test, predicciones))
 selected_variables = [
-    'Diabetes',
-    'Exercise Hours Per Week',
-    'Medication Use',
     'Age',
-    'Previous Heart Problems',
-    'Gender', 
+    'Gender',  # Debe estar codificada como 0 = Female, 1 = Male
+    'Diabetes',
+    'Family History',
     'Smoking',
-    'Alcohol Consumption',
-    'Sleep Hours Per Day',
-    'Diet'
+    'Obesity',
+    'Alcohol Consumption',  # Categórica: conviene codificar como 0-1-2-3 o con one-hot
+    'Exercise Hours Per Week',
+    'Diet',
+    'Previous Heart Problems',
+    'Medication Use',
+    'Stress Level',
+    'Sedentary Hours Per Day',
+    'Sleep Hours Per Day'    
 ]
+
 X = df[selected_variables]
 
 ros = RandomOverSampler(random_state=42)
@@ -165,148 +237,3 @@ print(f'Precisión: {accuracy}')
 print(classification_report(y_test, predicciones))
 
 
-
-
-
-
-# %%
-
-selected_variables = [
-    'Age',
-    'Gender',
-    'Diabetes',
-    'Blood sugar',
-    'Cholesterol',
-    'Systolic blood pressure',
-    'Diastolic blood pressure',
-    'Smoking',
-    'Alcohol Consumption',
-    'Exercise Hours Per Week',
-    'Medication Use',
-    'Previous Heart Problems'
-]
-
-X = df[selected_variables]
-
-ros = RandomOverSampler(random_state=42)
-X_resampled, y_resampled = ros.fit_resample(X, y)
-
-X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
-X_train.shape, y_train.shape
-
-# %%
-rf = RandomForestClassifier(n_estimators=100, random_state=42)
-rf.fit(X_train, y_train)
-
-# %%
-y_pred = rf.predict(X_test)
-
-accuracy = accuracy_score(y_test, y_pred)
-print(f'Precisión: {accuracy}')
-
-# %%
-plt.figure(figsize=(6, 4))
-sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Greens')
-plt.xlabel("Predicted")
-plt.ylabel("Actual")
-plt.title("Confusion Matrix - Random Forest Patients")
-plt.show()
-
-# %%
-# Guardar el modelo
-joblib.dump(rf, 'Modelo/modelo_rf_doctors.joblib')
-
-#%%
-# Cargar el modelo
-modelo_cargado = joblib.load('Modelo/modelo_rf_doctors.joblib')
-
-# %%
-predicciones = modelo_cargado.predict(X_test)
-accuracy = accuracy_score(y_test, predicciones)
-print(f'Precisión: {accuracy}')
-print(classification_report(y_test, predicciones))
-
-
-
-
-
-
-
-
-
-# %%
-
-selected_variables = [
-    'Age',
-    'Gender',
-    'Diabetes',
-    'Blood sugar',
-    'Cholesterol',
-    'Triglycerides',
-    'BMI',
-    'Systolic blood pressure',
-    'Diastolic blood pressure',
-    'Smoking',
-    'Alcohol Consumption',
-    'Obesity',
-    'CK-MB',
-    'Troponin',
-    'Stress Level'
-]
-
-
-X = df[selected_variables]
-
-ros = RandomOverSampler(random_state=42)
-X_resampled, y_resampled = ros.fit_resample(X, y)
-
-X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
-X_train.shape, y_train.shape
-
-# %%
-rf = RandomForestClassifier(n_estimators=100, random_state=42)
-rf.fit(X_train, y_train)
-
-# %%
-y_pred = rf.predict(X_test)
-
-accuracy = accuracy_score(y_test, y_pred)
-print(f'Precisión: {accuracy}')
-
-# %%
-plt.figure(figsize=(6, 4))
-sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Greens')
-plt.xlabel("Predicted")
-plt.ylabel("Actual")
-plt.title("Confusion Matrix - Random Forest Patients")
-plt.show()
-
-# %%
-# Guardar el modelo
-joblib.dump(rf, 'Modelo/modelo_rf_datascientists.joblib')
-
-#%%
-# Cargar el modelo
-modelo_cargado = joblib.load('Modelo/modelo_rf_datascientists.joblib')
-
-# %%
-predicciones = modelo_cargado.predict(X_test)
-accuracy = accuracy_score(y_test, predicciones)
-print(f'Precisión: {accuracy}')
-print(classification_report(y_test, predicciones))
-
-#%%
-df = pd.read_csv("Modelo/data/heart-attack-risk-prediction-dataset.csv")
-df['Gender'] = df['Gender'].map({'Male': 0, 'Female': 1})
-imputer = KNNImputer(n_neighbors=2)
-df = pd.DataFrame(imputer.fit_transform(df), columns=df.columns) 
-X =  df[selected_variables]
-print("Explainer")
-# %%
-explainer = shap.Explainer(modelo_cargado)
-x= X.sample(n=200, random_state=42)
-shap_values = explainer(x)[:,:,1]
-shap.plots.bar(shap_values, max_display=10)
-
-
-# %%
