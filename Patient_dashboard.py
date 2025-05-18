@@ -9,6 +9,8 @@ import shap
 from streamlit_shap import st_shap
 import dalex as dx
 from sklearn.impute import KNNImputer
+from lime.lime_tabular import LimeTabularExplainer
+
 
 selected_variables = [
     'Age',
@@ -148,7 +150,7 @@ def show_dashboard():
                 unsafe_allow_html=True
             )
         
-        explainer = shap.Explainer(modelo_cargado)
+        explainer = shap.TreeExplainer(modelo_cargado)
         pred = preprocess_input(pred)
         # Explain the prediction
         X = explain_dashboard()
@@ -159,6 +161,53 @@ def show_dashboard():
         st.header(f"Breakdown Explanation for your data")
         fig = local_exp.plot(show=False)  
         st.plotly_chart(fig)
+
+        # Obtener contribuciones ordenadas
+        top_features = local_exp.result[['variable', 'contribution']].sort_values(by='contribution', ascending=False)
+
+        # Separar las que suman al riesgo y las que lo reducen
+        mayores_contribuciones = top_features[top_features['contribution'] > 0].head(5)
+        menores_contribuciones = top_features[top_features['contribution'] < 0].tail(5)
+
+        # Generar explicación en texto
+        st.subheader("Explanation in words:")
+        explicacion = "Based on your data, the factors that increase your heart attack risk the most are:\n"
+        for _, row in mayores_contribuciones.iterrows():
+            if ((row['variable'] != 'prediction') & (row['variable'] != 'intercept')):
+                explicacion += f"- **{row['variable']}** (contribution: +{row['contribution']:.2f})\n"
+
+        explicacion += "\nThe factors that decrease your risk the most are:\n"
+        for _, row in menores_contribuciones.iterrows():
+            explicacion += f"- **{row['variable']}** (contribution: {row['contribution']:.2f})\n"
+
+        st.markdown(explicacion)
+
+
+        X_train = explain_dashboard().values
+
+        # Crear el explicador de LIME
+        lime_explainer = LimeTabularExplainer(
+            training_data=X_train,
+            feature_names=selected_variables,
+            class_names=['Low Risk', 'High Risk'],
+            mode='classification',
+            discretize_continuous=True
+        )
+
+        # Explicar la predicción individual
+        explanation = lime_explainer.explain_instance(
+            numpy.array(pred),  # input del usuario
+            modelo_cargado.predict_proba,
+            num_features=10
+        )
+
+        # Mostrar la explicación como texto y gráfico
+        st.subheader("Explanation of the prediction with LIME")
+        st.pyplot(explanation.as_pyplot_figure())
+
+        st.subheader("LIME feature contributions (text)")
+        for feature, weight in explanation.as_list():
+            st.markdown(f"- **{feature}**: {weight:+.2f}")
 
         
 

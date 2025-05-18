@@ -32,6 +32,6 @@ if profile == "Doctor":
 elif profile =="Patient":
     Patient_dashboard.show_dashboard()
 else: 
-    Data_analysts.show_dashboard()
+    Data_analysts.show_dashboard(selected_color_theme)
 
 
