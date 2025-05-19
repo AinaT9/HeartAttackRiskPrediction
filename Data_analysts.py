@@ -13,6 +13,8 @@ import altair as alt
 import pycountry
 from imblearn.over_sampling import RandomOverSampler
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
 
 
 
@@ -67,6 +69,7 @@ Feature_categories = {
     "Sleep Hours Per Day": "Lifestyle"
 }
 
+
 color_theme_map = {
     'blues': px.colors.sequential.Blues,
     'cividis': px.colors.sequential.Cividis,
@@ -80,50 +83,74 @@ color_theme_map = {
     'rainbow': px.colors.qualitative.Bold 
 }
 
-
 def make_donut(input_response, input_text, input_color):
+    # Define color schemes
     if input_color == 'blue':
         chart_color = ['#29b5e8', '#155F7A']
-    if input_color == 'green':
+    elif input_color == 'green':
         chart_color = ['#27AE60', '#12783D']
-    if input_color == 'orange':
+    elif input_color == 'orange':
         chart_color = ['#F39C12', '#875A12']
-    if input_color == 'red':
+    elif input_color == 'red':
         chart_color = ['#E74C3C', '#781F16']
+    else:
+        chart_color = ['gray', '#cccccc']
 
+    # Data for filled and empty parts
     source = pd.DataFrame({
-        "Topic": ['', input_text],
-        "% value": [100-input_response, input_response]
+        'category': ['filled', 'empty'],
+        'value': [input_response, 100 - input_response]
     })
+
+    # Data for background circle
     source_bg = pd.DataFrame({
-        "Topic": ['', input_text],
-        "% value": [100, 0]
+        'category': ['background'],
+        'value': [100]
     })
 
-    plot = alt.Chart(source).mark_arc(innerRadius=25, cornerRadius=15).encode(
-        theta="% value",
-        color=alt.Color("Topic:N",
-                        scale=alt.Scale(
-                            # domain=['A', 'B'],
-                            domain=[input_text, ''],
-                            # range=['#29b5e8', '#155F7A']),  # 31333F
-                            range=chart_color),
-                        legend=None),
-    ).properties(width=90, height=90)
+    # Background chart
+    plot_bg = alt.Chart(source_bg).mark_arc(innerRadius=50, outerRadius=70).encode(
+        theta=alt.Theta('value:Q'),
+        color=alt.value(chart_color[1])  # darker / background color
+    )
 
-    text = plot.mark_text(align='center', color="#29b5e8", font="Lato", fontSize=18,
-                          fontWeight=700, fontStyle="italic").encode(text=alt.value(f'{input_response} %'))
-    plot_bg = alt.Chart(source_bg).mark_arc(innerRadius=25, cornerRadius=10).encode(
-        theta="% value",
-        color=alt.Color("Topic:N",
+    # Foreground (main) donut chart
+    plot = alt.Chart(source).mark_arc(innerRadius=50, outerRadius=70).encode(
+        theta=alt.Theta('value:Q'),
+        color=alt.Color('category:N',
                         scale=alt.Scale(
-                            # domain=['A', 'B'],
-                            domain=[input_text, ''],
-                            range=chart_color),  # 31333F
-                        legend=None),
-    ).properties(width=90, height=90)
-    return plot_bg + plot + text
+                            domain=['filled', 'empty'],
+                            range=[chart_color[0], 'transparent']
+                        ),
+                        legend=None)
+    )
 
+    # Center text
+    text = alt.Chart(pd.DataFrame({'label': [f'{input_response} %']})).mark_text(
+        align='center',
+        font='Lato',
+        fontSize=24,
+        fontWeight=700,
+        fontStyle='italic',
+        color=chart_color[0],
+        dy=-5
+    ).encode(
+        text='label:N'
+    )
+
+    # Optional label under percentage
+    sublabel = alt.Chart(pd.DataFrame({'label': [input_text]})).mark_text(
+        align='center',
+        font='Lato',
+        fontSize=13,
+        color=chart_color[0],
+        dy=15
+    ).encode(
+        text='label:N'
+    )
+
+    # Combine all layers (background → main chart → text)
+    return plot_bg + plot + text + sublabel
 
 def get_iso3(country_name):
     try:
@@ -138,10 +165,10 @@ def make_choropleth(input_df, input_id, input_column, input_color_theme):
         locations=input_id,
         color=input_column,
         locationmode="ISO-3",
-        color_continuous_scale=input_color_theme,
-        range_color=(0, 100),
+        color_discrete_sequence=color_theme_map[input_color_theme],
+        hover_name = 'Country',
+        hover_data={input_column:True, input_id: False},
         scope="world",
-        labels={input_column: input_column}
     )
     choropleth.update_layout(
         template='plotly_dark',
@@ -156,8 +183,8 @@ def plot_by_variable(name, df, color):
     for group in df[name].unique():
         subset = df[df[name] == group]
         for risk in [0, 1]:
-            real_count = (subset['Heart Attack Risk'] == risk).sum()
-            pred_count = (subset['Predicted_Class'] == risk).sum()
+            real_count = (subset['True Risk'] == risk).sum()
+            pred_count = (subset['Predicted Risk'] == risk).sum()
 
             summary.extend([
                 {'Group': group, 'Risk': 'Low Risk' if risk == 0 else 'High Risk', 'Type': 'Real', 'Count': real_count},
@@ -179,47 +206,66 @@ def plot_by_variable(name, df, color):
 
 
 def show_dashboard(selected_color_theme):
+    ACCURACY, PRECISION, SPECIFITY, RECALL, F1SCORE, pct_high_risk, prob, y_test= get_metrics()
     st.header("Data Scientist Dashboard: Model Testing Interface")
     col = st.columns((1.5, 3, 3), gap='medium')
     with col[0]:
         st.markdown('#### Model Metrics ')
         st.markdown('##### Accuracy ')
-        st.altair_chart(make_donut(75, 'Accuracy', 'green'),
-                        use_container_width=True)
+        chart = make_donut(round(ACCURACY * 100, 2), 'Accuracy', 'green')
+        st.altair_chart(chart,
+                        use_container_width=True, on_select='ignore')
         st.markdown('##### Precision on High Risk class ')
-        st.altair_chart(make_donut(75, 'Accuracy', 'blue'),
-                        use_container_width=True)
+        st.altair_chart(make_donut(round(PRECISION * 100,2), 'Precision', 'blue'),
+                        use_container_width=True,on_select='ignore')
         st.markdown('##### Recall on High Risk class ')
-        st.altair_chart(make_donut(75, 'Accuracy', 'orange'),
-                        use_container_width=True)
+        st.altair_chart(make_donut(round(SPECIFITY * 100,2), 'Recall', 'orange'),
+                        use_container_width=True,on_select='ignore')
         st.markdown('##### Specificity on Low Risk class ')
-        st.altair_chart(make_donut(75, 'Accuracy', 'red'),
-                        use_container_width=True)
+        st.altair_chart(make_donut(round(RECALL * 100,2), 'Specificity', 'red'),
+                        use_container_width=True,on_select='ignore')
         st.markdown('##### F1-SCORE ')
-        st.altair_chart(make_donut(75, 'Accuracy', 'green'),
-                        use_container_width=True)
+        st.altair_chart(make_donut(round(F1SCORE * 100,2), 'F1-Score', 'green'),
+                        use_container_width=True,on_select='ignore')
         st.markdown('#### Dataset Statistics')
-        st.metric(label="'%' of Predicted High Risk", value=10, border=True)
-        st.metric(label="Average Probability of class High Risk",
-                  value=10, border=True)
+        st.metric(label="'%' of Predicted High Risk", value=f"{pct_high_risk}%", border=True)
+        st.metric(label="Average Probability of class High Risk", value=f"{prob}%", border=True)
 
     with col[1]:
-        st.markdown('#### Risk by Country')
-        df = get_df()
-        df['country_code'] = df['Country'].apply(get_iso3)
-        risk_class = st.selectbox("Select Risk Class to Show", options=[
-                                  "High Risk", "Low Risk"])
-        agg_df = df.groupby('country_code')[
-            'Heart Attack Risk'].mean().reset_index()
-        if risk_class == "High Risk":
-            agg_df['High Risk %'] = agg_df['Heart Attack Risk'] * 100
-            class_risk = 'High Risk %'
-        else:
-            agg_df['Low Risk %'] = (1 - agg_df['Heart Attack Risk']) * 100
-            class_risk = 'Low Risk %'
 
+        st.markdown('#### Top Feature by Country')
+        explainer, _, shap_values = explain_dashboard()
+        df = get_df()
+        X = df[columns]
+        X = X.sample(n=200, random_state=42)
+
+        shap_df = pd.DataFrame(shap_values.values, columns=X.columns)
+        shap_df['Country'] = X['Country'].values
+        country_shap = (
+            shap_df.drop(columns='Country')
+            .abs()
+            .groupby(shap_df['Country'])
+            .mean()
+            .reset_index()
+        )
+
+        # Convert to long format for ranking
+        long_df = country_shap.melt(id_vars='Country', var_name='Feature', value_name='MeanAbsSHAP')
+
+        # Get top feature per country (rank 1)
+        long_df['Rank'] = long_df.groupby('Country')['MeanAbsSHAP'].rank(ascending=False, method='first')
+        top_feature_df = long_df[long_df['Rank'] == 1].copy()
+
+        # Add ISO3 country codes
+        top_feature_df['country_code'] = top_feature_df['Country'].apply(get_iso3)
+
+        # Now create choropleth colored by this top feature (categorical)
         choropleth = make_choropleth(
-            agg_df, 'country_code', class_risk, selected_color_theme)
+            input_df=top_feature_df,
+            input_id='country_code',
+            input_column='Feature',  # single top feature per country
+            input_color_theme=selected_color_theme
+        )
         st.plotly_chart(choropleth, use_container_width=True)
 
         st.subheader("How Features Influence Predictions")
@@ -230,26 +276,20 @@ def show_dashboard(selected_color_theme):
         <p style="margin-bottom:4px;">The color represents the actual value of the feature (e.g., high or low cholesterol).</p>
         <p style="margin-bottom:4px;">Features are sorted by overall importance.</p>
         """, unsafe_allow_html=True)
-        explainer, X, shap_values = explain_dashboard()
-        st_shap(shap.plots.beeswarm(shap_values, max_display=15), height=500, width=900)
+        st_shap(shap.plots.beeswarm(shap_values, max_display=15), height=500, width=600)
         
 
         with col[2]:
             st.markdown('#### Prediction vs Real')
             selected_categories2 = st.selectbox(
                 label="Filter by Feature Category",
-                options=sorted(set(Feature_categories.keys())),
+                options=['Gender','Previous Heart Problems', 'Medication Use', 'Smoking','Obesity','Alcohol Consumption', 'Diet'],
             )
-            n = 200
-            smoking_status = np.random.choice(['Non-Smoker', 'Heavy Smoker'], size=n)
-            true_class = np.random.choice([0, 1], size=n, p=[0.7, 0.3])
-            predicted_class = np.random.choice([0, 1], size=n, p=[0.65, 0.35])
-            df = pd.DataFrame({
-                'Smoking': smoking_status,
-                'Heart Attack Risk': true_class,
-                'Predicted_Class': predicted_class
-            })
-            plot_by_variable("Smoking", df, selected_color_theme)
+            df = y_test[1].copy()
+            df['True Risk'] = y_test[2]
+            df['Predicted Risk'] = y_test[0]
+
+            plot_by_variable(selected_categories2, df, selected_color_theme)
 
             feature_importance = modelo_cargado.feature_importances_
             importance_df = pd.DataFrame({
@@ -280,40 +320,6 @@ def show_dashboard(selected_color_theme):
                 fig.update_layout(yaxis={'categoryorder': 'total ascending'})
                 st.plotly_chart(fig, use_container_width=True)
 
-            
-
-
-        #st_shap(shap.plots.scatter(shap_values[:, 'Cholesterol']))
-
-    # st.subheader("Enter patient data for ML model evaluation")
-    # inputs = []
-    # # for i, col in enumerate(columns):
-    # #     if col in ['Gender', 'Diabetes', 'Smoking', 'Alcohol Consumption', 'Obesity']:
-    # #         val = st.radio(f"{col}", ["Yes", "No"])
-    # #         val = 1 if val == "Yes" else 0
-    # #     else:
-    # #         val = st.slider(f"{col}", min_val, max_val, int((min_val + max_val) / 2))
-    # #     inputs.append(val)
-
-    # if st.button("Predict and Explain"):
-    #     st.subheader("Predicted Heart Attack Risk:")
-    #     risk = get_prediction(inputs)
-    #     display_risk_indicator(risk)
-
-    #     # SHAP
-    #     inputs_arr = np.array(inputs).reshape(1, -1)
-    #     explainer = shap.Explainer(modelo_cargado)
-    #     shap_values = explainer(inputs_arr)
-    #     shap_value = shap.Explanation(
-    #         values=shap_values.values[:, 1],
-    #         base_values=shap_values.base_values[0][1] * 100,
-    #         data=shap_values.data,
-    #         feature_names=columns
-    #     )
-    #     st.write("### SHAP Explanation (Model Interpretation)")
-    #     st_shap(shap.plots.force(shap_value, matplotlib=True))
-    #     plt.show()
-
 
 def get_df():
     df = pd.read_csv("Modelo/data/heart_attack_prediction_dataset.csv")
@@ -331,12 +337,26 @@ def get_df():
 
 def get_metrics():
     df = get_df()
+    le = LabelEncoder()
+    df['Country'] = le.fit_transform(df['Country'])
     target_column = "Heart Attack Risk"
     X = df.drop(columns=[target_column, "Heart Attack Risk"])
     y = df[target_column]
     ros = RandomOverSampler(random_state=42)
     X_resampled, y_resampled = ros.fit_resample(X, y)
     X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
+    y_pred = modelo_cargado.predict(X_test)
+    y_proba = modelo_cargado.predict_proba(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred, pos_label=0, average='binary')
+    specifity = precision_score(y_test, y_pred, pos_label=1, average='binary')
+    recall = recall_score(y_test, y_pred)
+    f1score = f1_score(y_test, y_pred)
+    num_high_risk = sum(1 for p in y_pred if p == 1)
+    pct_high_risk = round(100 * num_high_risk / len(y_pred), 2)
+    high_risk_probs = [prob[1] for prob in y_proba]
+    avg_high_risk_prob = round(100 * np.mean(high_risk_probs), 2)
+    return accuracy, precision, specifity, recall, f1score, pct_high_risk, avg_high_risk_prob, [y_pred, X_test,y_test]
 
 @st.cache_resource
 def explain_dashboard():
