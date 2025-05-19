@@ -8,6 +8,8 @@ from PIL import Image
 from sklearn.impute import KNNImputer
 import plotly.express as px
 import plotly.graph_objects as go
+from lime.lime_tabular import LimeTabularExplainer
+import numpy as np
 
 # Cargar modelo entrenado
 modelo_cargado = joblib.load('Modelo/modelo_rf_doctors.joblib')
@@ -99,10 +101,9 @@ def show_dashboard():
             status = "HIGH RISK" if risk_class == 1 else "LOW RISK"
             st.markdown(f"### You have {emoji} **{status}** of heart attack.")
 
-            image_path = "images/SemaforoVerde.png" if risk_percent < 30 else \
-                         "images/SemaforoAmarillo.png" if risk_percent < 70 else \
+            image_path = "images/SemaforoVerde.png" if risk_percent < 50 else \
                          "images/SemaforoRojo.png"
-            color = "green" if risk_percent < 30 else "yellow" if risk_percent < 70 else "red"
+            color = "green" if risk_percent < 30 else "red"
 
             col1, col2 = st.columns([1, 1])
             with col1:
@@ -113,12 +114,66 @@ def show_dashboard():
                                 width: 200px; margin: auto;'>{risk_percent} %</div>""",
                             unsafe_allow_html=True)
 
-            # --- DALEX Breakdown
-            st.header("🔍 Breakdown Explanation")
-            X = explain_dashboard()
-            explainer = dx.Explainer(modelo_cargado, X)
-            local_exp = explainer.predict_parts(np.array(pred))
-            st.plotly_chart(local_exp.plot(show=False))
+    # --- DALEX Breakdown
+    explainer = shap.TreeExplainer(modelo_cargado)
+    pred = [age, gender, cholesterol, heart_rate, diabetes, family_history,
+                    smoking, obesity, alcohol, exercise, diet, previous_heart,
+                    medication, stress, sedentary, bmi, triglycerides, sleep, systolic, diastolic]
+    pred = preprocess_input(pred)
+    # Explain the prediction
+    X = explain_dashboard()
+    explainer = dx.Explainer(modelo_cargado, X)
+    local_exp = explainer.predict_parts(pred)
+
+    # Explanation Breakdown Plot
+    st.header(f"Breakdown Explanation for your data")
+    fig = local_exp.plot(show=False)  
+    st.plotly_chart(fig)
+
+    top_features = local_exp.result[['variable', 'contribution']].sort_values(by='contribution', ascending=False)
+
+    # Separar las que suman al riesgo y las que lo reducen
+    mayores_contribuciones = top_features[top_features['contribution'] > 0].head(5)
+    menores_contribuciones = top_features[top_features['contribution'] < 0].tail(5)
+
+    # Generar explicación en texto
+    st.subheader("Explanation in words:")
+    explicacion = "Based on your data, the factors that increase your heart attack risk the most are:\n"
+    for _, row in mayores_contribuciones.iterrows():
+        if ((row['variable'] != 'prediction') & (row['variable'] != 'intercept')):
+            explicacion += f"- **{row['variable']}** (contribution: +{row['contribution']:.2f})\n"
+
+    explicacion += "\nThe factors that decrease your risk the most are:\n"
+    for _, row in menores_contribuciones.iterrows():
+        explicacion += f"- **{row['variable']}** (contribution: {row['contribution']:.2f})\n"
+
+    st.markdown(explicacion)
+
+    X_train = explain_dashboard().values
+
+    # Crear el explicador de LIME
+    lime_explainer = LimeTabularExplainer(
+        training_data=X_train,
+        feature_names=selected_variables,
+        class_names=['Low Risk', 'High Risk'],
+        mode='classification',
+        discretize_continuous=True
+    )
+
+    # Explicar la predicción individual
+    explanation = lime_explainer.explain_instance(
+        np.array(pred),  # input del usuario
+        modelo_cargado.predict_proba,
+        num_features=10
+    )
+
+    # Mostrar la explicación como texto y gráfico
+    st.subheader("Explanation of the prediction with LIME")
+    st.pyplot(explanation.as_pyplot_figure())
+
+    st.subheader("LIME feature contributions (text)")
+    for feature, weight in explanation.as_list():
+        st.markdown(f"- **{feature}**: {weight:+.2f}")
 
     st.markdown("---")
     show_visualizations()
@@ -139,28 +194,6 @@ def show_visualizations():
     df.dropna(inplace=True)
     df["Heart Attack Risk (Text)"] = df["Heart Attack Risk"].map({0: "Low", 1: "High"})
 
-    # Correlation
-    corr = df.corr(numeric_only=True).round(2)
-
-    # Age vs Risk
-    st.plotly_chart(px.scatter(df, x="Age", y="Heart Attack Risk",
-                               trendline="lowess", color="Heart Attack Risk (Text)",
-                               title="📈 Age vs Probability of Heart Attack"))
-
-    # Correlation matrix
-    fig_corr = go.Figure(data=go.Heatmap(
-        z=corr.values, x=corr.columns, y=corr.index,
-        colorscale="RdBu_r", zmin=-1, zmax=1, colorbar=dict(title="Correlation")
-    ))
-    fig_corr.update_layout(title="📊 Correlation Matrix (Full Dataset)", width=900, height=750)
-    st.plotly_chart(fig_corr)
-
-    # Stress vs Exercise heatmap
-    fig_stress = px.density_heatmap(df, x="Stress Level", y="Exercise Hours Per Week",
-                                    z="Heart Attack Risk", nbinsx=10, nbinsy=10,
-                                    histfunc="avg", color_continuous_scale="RdBu_r",
-                                    title="🏃‍♂️ Stress vs Exercise vs Risk")
-    st.plotly_chart(fig_stress)
 
     # Medication usage
     med_usage = df.groupby("Heart Attack Risk (Text)")["Medication Use"].mean().reset_index()
@@ -183,4 +216,12 @@ def explain_dashboard():
     df.dropna(inplace=True)
     return df[selected_variables]
 
-
+def preprocess_input(pred):
+    new_pred = []
+    for i,p in enumerate(pred): 
+        if p == 'No':
+            p = 0 
+        elif p=='Yes':
+            p = 1
+        new_pred.append(p)
+    return np.array(new_pred)
