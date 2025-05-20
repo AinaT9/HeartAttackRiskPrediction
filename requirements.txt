@@ -100,7 +100,6 @@ Markdown==3.7
 MarkupSafe 
 matplotlib==3.9.4
 matplotlib-inline 
-metrics==0.3.3
 mistune 
 mkl-service==2.4.0
 mkl_fft 
