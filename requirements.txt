@@ -187,6 +187,7 @@ soupsieve
 SpeechRecognition
 stack-data
 streamlit
+protobuf==3.20.3
 streamlit-lottie
 streamlit-shap
 sympy
