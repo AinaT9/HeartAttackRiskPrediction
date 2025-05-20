@@ -1,25 +1,24 @@
+# Import necessary libraries
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-import joblib
-import shap
+import joblib # For loading the pre-trained model
+import shap # For explainable AI using SHAP values
 from sklearn.impute import KNNImputer
-from streamlit_shap import st_shap
+from streamlit_shap import st_shap # Streamlit SHAP visual integration
 from sklearn.preprocessing import LabelEncoder
-import plotly.express as px
-import altair as alt
-import pycountry
+import plotly.express as px # For interactive charts
+import altair as alt # For creating donut charts
+import pycountry # For country code conversion
 from imblearn.over_sampling import RandomOverSampler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-
-
-
+# Cargar modelo entrenado
 modelo_cargado = joblib.load("Modelo/modelo_rf.joblib")
-
+# Define features used by the model
 columns = [
     "Age",
     "Gender",
@@ -43,6 +42,7 @@ columns = [
     "Systolic blood pressure",
     "Diastolic blood pressure"
 ]
+# Categorize features by type
 Feature_categories = {
     "Age": "Demographic",
     "Gender": "Demographic",
@@ -69,7 +69,7 @@ Feature_categories = {
     "Sleep Hours Per Day": "Lifestyle"
 }
 
-
+# Define color themes for plots
 color_theme_map = {
     'blues': px.colors.sequential.Blues,
     'cividis': px.colors.sequential.Cividis,
@@ -82,7 +82,7 @@ color_theme_map = {
     'turbo': px.colors.sequential.Turbo,
     'rainbow': px.colors.qualitative.Bold 
 }
-
+# Create a donut chart using Altair
 def make_donut(input_response, input_text, input_color):
     # Define color schemes
     if input_color == 'blue':
@@ -152,13 +152,14 @@ def make_donut(input_response, input_text, input_color):
     # Combine all layers (background → main chart → text)
     return plot_bg + plot + text + sublabel
 
+# Convert country name to ISO3 code for mapping
 def get_iso3(country_name):
     try:
         return pycountry.countries.get(name=country_name).alpha_3
     except:
         return None
 
-
+# Create choropleth map of top features by country
 def make_choropleth(input_df, input_id, input_column, input_color_theme):
     choropleth = px.choropleth(
         input_df,
@@ -178,6 +179,8 @@ def make_choropleth(input_df, input_id, input_column, input_color_theme):
         height=500
     )
     return choropleth
+
+# Plot real vs predicted risk grouped by a feature
 def plot_by_variable(name, df, color):
     summary = []
     for group in df[name].unique():
@@ -204,11 +207,14 @@ def plot_by_variable(name, df, color):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-
+# Main dashboard function
 def show_dashboard(selected_color_theme):
+    # Get model metrics and predictions
     ACCURACY, PRECISION, SPECIFITY, RECALL, F1SCORE, pct_high_risk, prob, y_test= get_metrics()
     st.header("Data Scientist Dashboard: Model Testing Interface")
     col = st.columns((1.5, 3, 3), gap='medium')
+
+    # Column for metrics
     with col[0]:
         st.markdown('#### Model Metrics ')
         st.markdown('##### Accuracy ')
@@ -231,8 +237,8 @@ def show_dashboard(selected_color_theme):
         st.metric(label="'%' of Predicted High Risk", value=f"{pct_high_risk}%", border=True)
         st.metric(label="Average Probability of class High Risk", value=f"{prob}%", border=True)
 
+    # SHAP and top features by country
     with col[1]:
-
         st.markdown('#### Top Feature by Country')
         explainer, _, shap_values = explain_dashboard()
         df = get_df()
@@ -278,7 +284,7 @@ def show_dashboard(selected_color_theme):
         """, unsafe_allow_html=True)
         st_shap(shap.plots.beeswarm(shap_values, max_display=15), height=500, width=600)
         
-
+        # Prediction vs Real and Feature Importance
         with col[2]:
             st.markdown('#### Prediction vs Real')
             selected_categories2 = st.selectbox(
@@ -291,6 +297,7 @@ def show_dashboard(selected_color_theme):
 
             plot_by_variable(selected_categories2, df, selected_color_theme)
 
+            # Feature importance plot
             feature_importance = modelo_cargado.feature_importances_
             importance_df = pd.DataFrame({
                 'Feature': columns,
@@ -320,7 +327,7 @@ def show_dashboard(selected_color_theme):
                 fig.update_layout(yaxis={'categoryorder': 'total ascending'})
                 st.plotly_chart(fig, use_container_width=True)
 
-
+# Load and clean dataset
 def get_df():
     df = pd.read_csv("Modelo/data/heart_attack_prediction_dataset.csv")
     df = df.drop(columns=['Patient ID', 'Income',
@@ -335,6 +342,7 @@ def get_df():
     df = df.drop(columns=['Blood Pressure'])
     return df
 
+# Compute model metrics
 def get_metrics():
     df = get_df()
     le = LabelEncoder()
@@ -358,6 +366,7 @@ def get_metrics():
     avg_high_risk_prob = round(100 * np.mean(high_risk_probs), 2)
     return accuracy, precision, specifity, recall, f1score, pct_high_risk, avg_high_risk_prob, [y_pred, X_test,y_test]
 
+# Generate SHAP explainer and values (cached for performance)
 @st.cache_resource
 def explain_dashboard():
     df = get_df()
@@ -370,45 +379,3 @@ def explain_dashboard():
     X = X.sample(n=200, random_state=42)
     shap_values = explainer(X)[:,:,1]
     return explainer, X, shap_values
-
-
-def get_prediction(pred):
-    pred = np.array(pred).reshape(1, -1)
-    probab = modelo_cargado.predict_proba(pred)
-    return int(probab[0][1] * 100)
-
-
-def display_risk_indicator(value):
-    if value < 30:
-        color = "green"
-        image_path = "images/SemaforoVerde.png"
-    elif 30 <= value < 70:
-        color = "yellow"
-        image_path = "images/SemaforoAmarillo.png"
-    else:
-        color = "red"
-        image_path = "images/SemaforoRojo.png"
-
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        image = Image.open(image_path)
-        st.image(image, width=250)
-    with col2:
-        st.markdown(
-            f"""
-            <div style='
-                background-color: {color};
-                padding: 20px;
-                border-radius: 10px;
-                text-align: center;
-                font-size: 24px;
-                font-weight: bold;
-                color: black;
-                width: 200px;
-                margin: auto;
-            '>
-                {value} %
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
