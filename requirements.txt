@@ -101,7 +101,7 @@ MarkupSafe
 matplotlib==3.9.4
 matplotlib-inline 
 mistune 
-mkl-service==2.4.0
+mkl-service
 mkl_fft 
 mkl_random 
 ml-dtypes==0.2.0
