@@ -2,6 +2,7 @@ streamlit
 protobuf==3.20.3
 streamlit-lottie
 streamlit-shap
+lime
 absl-py
 altair
 annotated-types
