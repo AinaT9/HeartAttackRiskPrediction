@@ -33,6 +33,7 @@ comm
 contourpy
 cycler
 dalex
+pycountry
 debugpy
 decorator
 deeplake
