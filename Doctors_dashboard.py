@@ -94,16 +94,20 @@ def show_dashboard():
             pred = [age, gender, cholesterol, heart_rate, diabetes, family_history,
                     smoking, obesity, alcohol, exercise, diet, previous_heart,
                     medication, stress, sedentary, bmi, triglycerides, sleep, systolic, diastolic]
-
-            risk_percent = int(modelo_cargado.predict_proba(np.array(pred).reshape(1, -1))[0][1] * 100)
+            
             risk_class = int(modelo_cargado.predict(np.array(pred).reshape(1, -1))[0])
+            risk_percent = int(modelo_cargado.predict_proba(np.array(pred).reshape(1, -1))[0][risk_class] * 100)
+            
             emoji = "🚨" if risk_class == 1 else "🩺"
             status = "HIGH RISK" if risk_class == 1 else "LOW RISK"
-            st.markdown(f"### You have {emoji} **{status}** of heart attack.")
+            st.markdown(f"### The patient has {emoji} **{status}** of heart attack.")
 
-            image_path = "images/SemaforoVerde.png" if risk_percent < 50 else \
-                         "images/SemaforoRojo.png"
-            color = "green" if risk_percent < 30 else "red"
+            if risk_class == 1:
+                image_path = "images/SemaforoRojo.png"
+                color = "red"
+            else:
+                image_path = "images/SemaforoVerde.png"
+                color = "green"
 
             col1, col2 = st.columns([1, 1])
             with col1:
@@ -114,69 +118,69 @@ def show_dashboard():
                                 width: 200px; margin: auto;'>{risk_percent} %</div>""",
                             unsafe_allow_html=True)
 
-    # --- DALEX Breakdown
-    explainer = shap.TreeExplainer(modelo_cargado)
-    pred = [age, gender, cholesterol, heart_rate, diabetes, family_history,
-                    smoking, obesity, alcohol, exercise, diet, previous_heart,
-                    medication, stress, sedentary, bmi, triglycerides, sleep, systolic, diastolic]
-    pred = preprocess_input(pred)
-    # Explain the prediction
-    X = explain_dashboard()
-    explainer = dx.Explainer(modelo_cargado, X)
-    local_exp = explainer.predict_parts(pred)
+            # --- DALEX Breakdown
+            explainer = shap.TreeExplainer(modelo_cargado)
+            pred = [age, gender, cholesterol, heart_rate, diabetes, family_history,
+                            smoking, obesity, alcohol, exercise, diet, previous_heart,
+                            medication, stress, sedentary, bmi, triglycerides, sleep, systolic, diastolic]
+            pred = preprocess_input(pred)
+            # Explain the prediction
+            X = explain_dashboard()
+            explainer = dx.Explainer(modelo_cargado, X)
+            local_exp = explainer.predict_parts(pred)
 
-    # Explanation Breakdown Plot
-    st.header(f"Breakdown Explanation for your data")
-    fig = local_exp.plot(show=False)  
-    st.plotly_chart(fig)
+            # Explanation Breakdown Plot
+            st.header(f"Breakdown Explanation for your data")
+            fig = local_exp.plot(show=False)  
+            st.plotly_chart(fig)
 
-    top_features = local_exp.result[['variable', 'contribution']].sort_values(by='contribution', ascending=False)
+            top_features = local_exp.result[['variable', 'contribution']].sort_values(by='contribution', ascending=False)
 
-    # Separar las que suman al riesgo y las que lo reducen
-    mayores_contribuciones = top_features[top_features['contribution'] > 0].head(5)
-    menores_contribuciones = top_features[top_features['contribution'] < 0].tail(5)
+            # Separar las que suman al riesgo y las que lo reducen
+            mayores_contribuciones = top_features[top_features['contribution'] > 0].head(5)
+            menores_contribuciones = top_features[top_features['contribution'] < 0].tail(5)
 
-    # Generar explicación en texto
-    st.subheader("Explanation in words:")
-    explicacion = "Based on your data, the factors that increase your heart attack risk the most are:\n"
-    for _, row in mayores_contribuciones.iterrows():
-        if ((row['variable'] != 'prediction') & (row['variable'] != 'intercept')):
-            explicacion += f"- **{row['variable']}** (contribution: +{row['contribution']:.2f})\n"
+            # Generar explicación en texto
+            st.subheader("Explanation in words:")
+            explicacion = "Based on your data, the factors that increase your heart attack risk the most are:\n"
+            for _, row in mayores_contribuciones.iterrows():
+                if ((row['variable'] != 'prediction') & (row['variable'] != 'intercept')):
+                    explicacion += f"- **{row['variable']}** (contribution: +{row['contribution']:.2f})\n"
 
-    explicacion += "\nThe factors that decrease your risk the most are:\n"
-    for _, row in menores_contribuciones.iterrows():
-        explicacion += f"- **{row['variable']}** (contribution: {row['contribution']:.2f})\n"
+            explicacion += "\nThe factors that decrease your risk the most are:\n"
+            for _, row in menores_contribuciones.iterrows():
+                explicacion += f"- **{row['variable']}** (contribution: {row['contribution']:.2f})\n"
 
-    st.markdown(explicacion)
+            st.markdown(explicacion)
 
-    X_train = explain_dashboard().values
+            X_train = explain_dashboard().values
 
-    # Crear el explicador de LIME
-    lime_explainer = LimeTabularExplainer(
-        training_data=X_train,
-        feature_names=selected_variables,
-        class_names=['Low Risk', 'High Risk'],
-        mode='classification',
-        discretize_continuous=True
-    )
+            # Crear el explicador de LIME
+            lime_explainer = LimeTabularExplainer(
+                training_data=X_train,
+                feature_names=selected_variables,
+                class_names=['Low Risk', 'High Risk'],
+                mode='classification',
+                discretize_continuous=True
+            )
 
-    # Explicar la predicción individual
-    explanation = lime_explainer.explain_instance(
-        np.array(pred),  # input del usuario
-        modelo_cargado.predict_proba,
-        num_features=10
-    )
+            # Explicar la predicción individual
+            explanation = lime_explainer.explain_instance(
+                np.array(pred),  # input del usuario
+                modelo_cargado.predict_proba,
+                num_features=10
+            )
 
-    # Mostrar la explicación como texto y gráfico
-    st.subheader("Explanation of the prediction with LIME")
-    st.pyplot(explanation.as_pyplot_figure())
+            # Mostrar la explicación como texto y gráfico
+            st.subheader("Explanation of the prediction with LIME")
+            st.pyplot(explanation.as_pyplot_figure())
 
-    st.subheader("LIME feature contributions (text)")
-    for feature, weight in explanation.as_list():
-        st.markdown(f"- **{feature}**: {weight:+.2f}")
+            st.subheader("LIME feature contributions (text)")
+            for feature, weight in explanation.as_list():
+                st.markdown(f"- **{feature}**: {weight:+.2f}")
 
-    st.markdown("---")
-    show_visualizations()
+            st.markdown("---")
+            show_visualizations()
 
 
 # ------------------------- VISUALIZACIONES ------------------------- #

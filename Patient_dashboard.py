@@ -107,8 +107,8 @@ def show_dashboard():
     pred = [age,gender,diabetes,family_history,smoking,obesity, alcohol, exercise, diet,val, medication, stress, sedentary, sleep]
 
     if b:
-        risk_percent = get_prediction(pred)  
         risk_class = get_predicted_class(pred)
+        risk_percent = get_prediction(pred, risk_class)  
         if risk_class == 1:
             decision_text = "HIGH RISK"
             emoji = "🚨"
@@ -117,12 +117,12 @@ def show_dashboard():
             emoji = "💪"
 
         st.markdown(f"###  You have {emoji} **{decision_text}** of having a heart attack.")        
-        if risk_percent < 50:
-            color = "green"
-            image_path = "images/SemaforoVerde.png"
-        else:
-            color = "red"
+        if risk_class == 1:
             image_path = "images/SemaforoRojo.png"
+            color = "red"
+        else:
+            image_path = "images/SemaforoVerde.png"
+            color = "green"
         col1, col2 = st.columns([1, 1])
         with col1:
             image = Image.open(image_path)
@@ -221,11 +221,11 @@ def get_predicted_class(pred):
     pred = pred.reshape(1, -1)
     return int(modelo_cargado.predict(pred)[0])
 
-def get_prediction(pred):
+def get_prediction(pred, risk_class):
     pred = preprocess_input(pred)
     pred= pred.reshape(1, -1)
     probab = modelo_cargado.predict_proba(pred)
-    return int(probab[0][1] * 100)
+    return int(probab[0][risk_class] * 100)
 
 
 def explain_dashboard():
